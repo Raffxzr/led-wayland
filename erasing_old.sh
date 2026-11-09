@@ -1,32 +1,24 @@
+#!/bin/bash
+#
+# Removes files installed by older versions of this project.
 
-
-# uninstalling old version
-if [ -f /usr/local/bin/keyboard_leds.sh ]
+if [ "$(id -u)" -ne 0 ]
 then
-    echo "Old file detected: /usr/local/bin/keyboard_leds.sh"
-    echo "erasing file"
-    sudo rm /usr/local/bin/keyboard_leds.sh
+    echo "Error: run this script as root (sudo ./erasing_old.sh)" >&2
+    exit 1
 fi
 
-if [ -f /usr/local/bin/keyboard_switch.sh ]
-then
-    echo "Old file detected: /usr/local/bin/keyboard_switch.sh"
-    echo "erasing file"
-    sudo rm /usr/local/bin/keyboard_switch.sh
-fi
-
-if [ -f /etc/systemd/system/keyboard_leds.service ]
-then
-    echo "Old file detected: /etc/systemd/system/keyboard_leds.service"
-    echo "erasing file"
-    sudo rm /etc/systemd/system/keyboard_leds.service
-fi
-
-if [ -f /etc/sudoers.d/leds_wayland ]
-then
-    echo "Old file detected: /etc/sudoers.d/leds_wayland "
-    echo "erasing file"
-    sudo rm /etc/sudoers.d/leds_wayland 
-fi
-
-
+for old_file in \
+    /usr/local/bin/keyboard_leds.sh \
+    /usr/local/bin/keyboard_switch.sh \
+    /etc/systemd/system/keyboard_leds.service \
+    /etc/sudoers.d/leds_wayland \
+    /etc/sudoers.d/led_wayland
+do
+    if [ -f "$old_file" ]
+    then
+        echo "Old file detected: $old_file"
+        echo "Erasing file"
+        rm -f "$old_file"
+    fi
+done

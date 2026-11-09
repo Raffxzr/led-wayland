@@ -1,50 +1,56 @@
-#! /bin/bash
+#!/bin/bash
+#
+# Installs the keyboard LEDs control service for Wayland.
+
+set -euo pipefail
+
+if [ "$(id -u)" -ne 0 ]
+then
+    echo "Error: run this script as root (sudo ./install.sh)" >&2
+    exit 1
+fi
+
+install_dir=/opt/led-wayland
+service_file=/etc/systemd/system/keyboard_leds.service
+sudoers_file=/etc/sudoers.d/leds_wayland
 
 echo "Installing LEDs control for Wayland"
 
-# stops task if they're already working
-echo "It assumes Systemd's service is enabled"
-sudo systemctl stop keyboard_leds
+# Stops the task if it is already running.
+systemctl stop keyboard_leds 2>/dev/null || true
 
-# copy repository to 'opt' system directory
-echo "Copying repository to /opt folder"
-# cd ..
-# sudo cp -r led-wayland/ /opt
-if [ -d /opt/led-wayland ]
-then
-    echo "Folder exists already"
-else
-    echo "Creating folder"
-    mkdir /opt/led-wayland
-fi
-
-sudo cp * /opt/led-wayland
+# Copy repository contents to the 'opt' system directory.
+echo "Copying repository to $install_dir"
+install -d "$install_dir"
+cp -a -- ./* "$install_dir"/
+chmod +x "$install_dir"/*.sh
 echo "Repository copied"
 
-# periodic task - pushes LED's status (to ON by default)
-sudo chmod +x /opt/led-wayland/keyboard_leds.sh
-# trigger task - sends signal to LED's manager
-sudo chmod +x /opt/led-wayland/switching.sh
-# uninstall old version if exists
-sudo chmod +x /opt/led-wayland/erasing_old.sh
-/opt/led-wayland/erasing_old.sh
+# Uninstall an older version, if it exists.
+"$install_dir/erasing_old.sh"
 
-# Systemd service - initializes routine after boot
-sudo cp /opt/led-wayland/keyboard_leds.service /etc/systemd/system/keyboard_leds.service
+# Systemd service - initializes routine after boot.
+install -m 0644 "$install_dir/keyboard_leds.service" "$service_file"
 
-# enable permissions to users for switch execution  
-echo "ALL ALL=(ALL)  NOPASSWD: /opt/led-wayland/switching.sh"  > /etc/sudoers.d/leds_wayland 
-echo "ALL ALL=(ALL)  NOPASSWD: /opt/led-wayland/keyboard_leds.sh"  > /etc/sudoers.d/led_wayland 
+# Allows the invoking user to toggle the LEDs without a password.
+# The rule is limited to switching.sh instead of every command.
+target_user=${SUDO_USER:-$(id -un)}
+printf '%s ALL=(root) NOPASSWD: %s\n' "$target_user" "$install_dir/switching.sh" > "$sudoers_file"
+chmod 0440 "$sudoers_file"
+if command -v visudo >/dev/null 2>&1
+then
+    visudo -cf "$sudoers_file"
+fi
+# Removes the overly broad rule written by older versions.
+rm -f /etc/sudoers.d/led_wayland
 
-
-# enables auto-init 
-sudo systemctl enable keyboard_leds
-sudo systemctl daemon-reload
-sudo systemctl start keyboard_leds
-
+# Enables auto-init.
+systemctl daemon-reload
+systemctl enable keyboard_leds
+systemctl start keyboard_leds
 
 echo "Done!"
 echo ""
 echo "Now the LEDs should turn on automatically"
-echo "To turn off LEDs or turn on again execute:"   
-echo "sudo /opt/led-wayland/switching.sh"
+echo "To turn off LEDs or turn on again execute:"
+echo "sudo $install_dir/switching.sh"

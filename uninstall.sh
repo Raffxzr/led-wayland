@@ -1,33 +1,31 @@
-#! /bin/bash
+#!/bin/bash
+#
+# Uninstalls the keyboard LEDs service, its files and its sudoers rule.
 
+set -euo pipefail
+
+if [ "$(id -u)" -ne 0 ]
+then
+    echo "Error: run this script as root (sudo ./uninstall.sh)" >&2
+    exit 1
+fi
 
 echo "Uninstalling LED's routines and services..."
 
-# stops services and routines
-sudo systemctl stop keyboard_leds
-pid=`pgrep keyboard_leds`
-kill -SIGKILL  $pid
+systemctl stop keyboard_leds 2>/dev/null || true
+systemctl disable keyboard_leds 2>/dev/null || true
 
+# Removing all routines.
+rm -rf /opt/led-wayland
 
-# removing all routines 
-sudo rm -r /opt/led-wayland/
+# Removing the systemd service.
+rm -f /etc/systemd/system/keyboard_leds.service
 
+# Removing user permissions (both current and legacy file names).
+rm -f /etc/sudoers.d/leds_wayland /etc/sudoers.d/led_wayland
 
-# removing Systemd servcie
-if [ -f /etc/systemd/system/keyboard_leds.service ]
-then
-    sudo rm /etc/systemd/system/keyboard_leds.service
-fi
-
-
-# removing user permissions
-if [ -f /etc/sudoers.d/leds_wayland ]
-then
-    sudo rm /etc/sudoers.d/leds_wayland 
-fi
-
-# reloading services - forcing initialization
-sudo systemctl daemon-reload
+# Reloading services - forcing initialization.
+systemctl daemon-reload
 
 echo "Done!"
 echo "LEDs routines uninstalled"
