@@ -1,60 +1,64 @@
-#! /bin/bash
+#!/bin/bash
+#
+# Periodically forces the keyboard backlight LEDs on.
+#
+# Usage: keyboard_leds.sh [leds_folder] [delay]
+#
+# SIGUSR1 toggles the LEDs between on and off (see switching.sh).
 
-trap sigusr1_handler SIGUSR1
+leds_folder=${1:-/sys/class/leds/}
+delay=${2:-0.2}
+leds_value=1
 
-function sigusr1_handler() {
+# PID file used by switching.sh to find this process. /run is only writable
+# by root, so fall back to the temporary directory for local testing.
+pid_file=/run/keyboard_leds.pid
+if [ ! -w "$(dirname "$pid_file")" ]
+then
+    pid_file=${TMPDIR:-/tmp}/keyboard_leds.pid
+fi
+echo $$ > "$pid_file"
+trap 'rm -f "$pid_file"' EXIT
 
-    if [ $leds_value -eq 1 ]
+sigusr1_handler() {
+    if [ "$leds_value" -eq 1 ]
     then
         leds_value=0
-    else 
+    else
         leds_value=1
     fi
 
-    echo "\nSIGUSR1 received - LEDs value: $leds_value"
+    echo "SIGUSR1 received - LEDs value: $leds_value"
 }
 
+trap sigusr1_handler SIGUSR1
 
-led_folder=$1
-delay=$2
+if [ ! -d "$leds_folder" ]
+then
+    echo "Error: '$leds_folder' is not a directory" >&2
+    exit 1
+fi
 
-cd $led_folder
-
-content=`ls`
-
-pattern="input" 
-
-key="scrolllock"
-
-leds_value=1
-
+# Always work with a trailing slash so folder and entry can be concatenated
+# safely, no matter how the caller passed the path.
+leds_folder=${leds_folder%/}/
 
 while :
 do
-
-    # every inner folder is tested
-    for inner_folder in ${content[*]}
+    # Rescan on every pass so keyboards plugged in after boot are picked up.
+    # brightness must be written with '>' (overwrite); '>>' (append) and a
+    # preceding sudo (which does not apply to the redirection) do not work.
+    shopt -s nullglob
+    for led_path in "$leds_folder"*"::scrolllock"/brightness
     do
+        [ -f "$led_path" ] || continue
 
-        condition_1=`echo $inner_folder | grep $pattern | wc -l`
-        condition_2=`echo $inner_folder | grep $key | wc -l`
-
-        if [ $condition_1 -ge 1 -a $condition_2 -ge 1 ] 
+        if ! echo "$leds_value" > "$led_path" 2>/dev/null
         then
-
-            # composing LED path
-            led_path="$led_folder$inner_folder/brightness"
-            # echo $led_path
-
-            # if LED exists then it's value is updated
-            if test -f $led_path
-            then
-                sudo echo $leds_value >> $led_path
-            fi
-
+            echo "Warning: cannot write to $led_path" >&2
         fi
-
     done
+    shopt -u nullglob
 
-sleep $delay;    
+    sleep "$delay"
 done
