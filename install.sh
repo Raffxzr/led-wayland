@@ -21,9 +21,14 @@ systemctl stop keyboard_leds 2>/dev/null || true
 
 # Copy repository contents to the 'opt' system directory.
 echo "Copying repository to $install_dir"
-install -d "$install_dir"
+install -d -m 0755 "$install_dir"
 cp -a -- ./* "$install_dir"/
-chmod +x "$install_dir"/*.sh
+
+# The service runs these files as root, so they must not keep the owner of the
+# user who cloned the repository (that would allow privilege escalation).
+chown -R root:root "$install_dir"
+find "$install_dir" -type f -exec chmod 0644 {} +
+chmod 0755 "$install_dir"/*.sh
 echo "Repository copied"
 
 # Uninstall an older version, if it exists.
