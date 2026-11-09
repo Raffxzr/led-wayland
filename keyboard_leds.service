@@ -1,11 +1,13 @@
-
-
 [Unit]
-Description=Turning on LEDs on Wayland - periodic task.
+Description=Keyboard LED control for Wayland (periodic task)
+After=multi-user.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/nice -n 19 /opt/led-wayland/keyboard_leds.sh /sys/class/leds/  0.2
+Nice=19
+ExecStart=/opt/led-wayland/keyboard_leds.sh /sys/class/leds/ 0.2
+Restart=always
+RestartSec=2
 
 [Install]
 WantedBy=multi-user.target
